@@ -13,7 +13,8 @@ CREATE TABLE IF NOT EXISTS usuario (
 CREATE TABLE tema (
     tema_id INT AUTO_INCREMENT PRIMARY KEY,
     nombre VARCHAR(255),
-    descripcion TEXT
+    descripcion TEXT,
+    activo BOOLEAN DEFAULT TRUE
 );
 
 CREATE TABLE comentario (

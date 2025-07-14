@@ -10,7 +10,8 @@ if (!empty($busqueda)) {
     $stmt->execute(["%$busqueda%", "%$busqueda%"]);
     $temas = $stmt->fetchAll();
 } else {
-    $temas = $pdo->query("SELECT * FROM tema")->fetchAll();
+    $stmt = $pdo->query("SELECT * FROM tema");
+    $temas = $stmt->fetchAll();
 }
 ?>
 
@@ -25,7 +26,6 @@ if (!empty($busqueda)) {
 </head>
 
 <body class="bg-gray-100 min-h-screen font-sans">
-
     <?php include 'partials/header.php'; ?>
 
     <main class="max-w-6xl mx-auto mt-10 px-4 sm:px-6 lg:px-8">
@@ -49,18 +49,38 @@ if (!empty($busqueda)) {
                 <?php foreach ($temas as $tema): ?>
                     <li>
                         <a href="tema.php?id=<?= $tema['tema_id'] ?>"
-                            class="block bg-white rounded-xl shadow hover:shadow-lg transition duration-300 p-6 h-full">
-                            <h2 class="text-xl font-semibold text-blue-700 mb-2">
+                            class="block bg-white rounded-xl shadow hover:shadow-lg transition duration-300 p-6 h-full relative">
+                            <h2 class="text-xl font-semibold mb-2 <?= $tema['activo'] ? 'text-blue-700' : 'text-gray-400' ?>">
                                 <?= htmlspecialchars($tema['nombre']) ?>
                             </h2>
-                            <p class="text-gray-600 text-sm"><?= htmlspecialchars($tema['descripcion']) ?></p>
+                            <p class="text-sm <?= $tema['activo'] ? 'text-gray-600' : 'text-gray-400' ?>">
+                                <?= htmlspecialchars($tema['descripcion']) ?>
+                            </p>
+
+                            <!-- Etiqueta de estado -->
+                            <div class="absolute top-4 right-4 text-xs px-2 py-1 rounded-full 
+                    <?= $tema['activo'] ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700' ?>">
+                                <?= $tema['activo'] ? 'Activo' : 'Inactivo' ?>
+                            </div>
                         </a>
+
+                        <!-- Botón para admin -->
+                        <?php if (isset($_SESSION['nombre']) && $_SESSION['rol'] === 'administrador'): ?>
+                            <form action="toggle_tema.php" method="POST" class="mt-2 text-right">
+                                <input type="hidden" name="tema_id" value="<?= $tema['tema_id'] ?>">
+                                <input type="hidden" name="accion" value="<?= $tema['activo'] ? 'desactivar' : 'activar' ?>">
+                                <button type="submit"
+                                    class="<?= $tema['activo'] ? 'text-red-500' : 'text-green-600' ?> hover:underline text-sm">
+                                    <?= $tema['activo'] ? '🚫 Desactivar' : '✅ Activar' ?>
+                                </button>
+                            </form>
+                        <?php endif; ?>
                     </li>
                 <?php endforeach; ?>
             </ul>
+
         <?php endif; ?>
     </main>
-
 </body>
 
 </html>

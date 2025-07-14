@@ -1,5 +1,8 @@
 <?php
-$uri = getenv("DB_URI"); 
+require_once 'load_env.php';
+loadEnv(__DIR__ . "/../.env");
+
+$uri = getenv("DB_URI");
 
 $parsed = parse_url($uri);
 
@@ -15,4 +18,3 @@ try {
 } catch (PDOException $e) {
     die("Error de conexión: " . $e->getMessage());
 }
-?>

@@ -19,7 +19,7 @@ if (!$tema) {
 }
 
 // Guardar nuevo comentario o respuesta
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SESSION['nombre'])) {
+if ($tema['activo'] && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SESSION['nombre'])) {
     if (isset($_POST['contenido'])) {
         $contenido = $_POST['contenido'];
         $respondido_a = !empty($_POST['respondido_a']) ? $_POST['respondido_a'] : null;
@@ -29,7 +29,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SESSION['nombre'])) {
         exit;
     }
 
-    // Editar comentario o respuesta
     if (isset($_POST['editar_id']) && isset($_POST['nuevo_contenido'])) {
         $editar_id = $_POST['editar_id'];
         $nuevo_contenido = $_POST['nuevo_contenido'];
@@ -40,8 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SESSION['nombre'])) {
     }
 }
 
-// Eliminar comentario o respuesta
-if (isset($_GET['eliminar']) && isset($_SESSION['usuario_id'])) {
+if ($tema['activo'] && isset($_GET['eliminar']) && isset($_SESSION['usuario_id'])) {
     $eliminar_id = $_GET['eliminar'];
     $stmt = $pdo->prepare("DELETE FROM comentario WHERE comentario_id = ? AND usuario_id = ?");
     $stmt->execute([$eliminar_id, $_SESSION['usuario_id']]);
@@ -49,12 +47,10 @@ if (isset($_GET['eliminar']) && isset($_SESSION['usuario_id'])) {
     exit;
 }
 
-// Obtener comentarios padres
 $stmt = $pdo->prepare("SELECT c.*, u.nombre FROM comentario c JOIN usuario u ON c.usuario_id = u.usuario_id WHERE c.tema_id = ? AND c.respondido_a IS NULL ORDER BY c.creado_en DESC");
 $stmt->execute([$tema_id]);
 $comentarios_padres = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Obtener respuestas
 $stmt = $pdo->prepare("SELECT c.*, u.nombre FROM comentario c JOIN usuario u ON c.usuario_id = u.usuario_id WHERE c.tema_id = ? AND c.respondido_a IS NOT NULL");
 $stmt->execute([$tema_id]);
 $respuestas = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -66,7 +62,7 @@ foreach ($respuestas as $r) {
 
 function puedeEditar($creado_en)
 {
-    return strtotime($creado_en) + 900 < time(); // 15 minutos
+    return strtotime($creado_en) + 900 > time(); // 15 minutos
 }
 ?>
 
@@ -99,16 +95,17 @@ function puedeEditar($creado_en)
             <h1 class="text-2xl sm:text-3xl font-bold text-blue-700 mb-2"><?= htmlspecialchars($tema['nombre']) ?></h1>
             <p class="text-gray-700 mb-6 text-sm sm:text-base"><?= htmlspecialchars($tema['descripcion']) ?></p>
 
-            <?php if (isset($_SESSION['nombre'])): ?>
+            <?php if (!$tema['activo']): ?>
+                <div class="mb-8 p-4 bg-yellow-100 text-yellow-800 text-sm rounded">
+                    Este tema está inactivo. No se permiten nuevos comentarios ni respuestas.
+                </div>
+            <?php endif; ?>
+
+            <?php if (isset($_SESSION['nombre']) && $tema['activo']): ?>
                 <form method="POST" class="space-y-4 mb-10">
                     <input type="hidden" name="respondido_a" value="">
-                    <textarea name="contenido" required
-                        class="w-full p-3 border rounded-lg resize-none focus:ring-2 focus:ring-blue-400 text-sm"
-                        placeholder="Escribe tu comentario..."></textarea>
-                    <button type="submit"
-                        class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition text-sm">
-                        💬 Comentar
-                    </button>
+                    <textarea name="contenido" required class="w-full p-3 border rounded-lg resize-none focus:ring-2 focus:ring-blue-400 text-sm" placeholder="Escribe tu comentario..."></textarea>
+                    <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition text-sm">💬 Comentar</button>
                 </form>
             <?php endif; ?>
 
@@ -123,15 +120,17 @@ function puedeEditar($creado_en)
                                     <strong><?= htmlspecialchars($comentario['nombre']) ?></strong> |
                                     <?= $comentario['creado_en'] ?>
                                 </p>
-                                <div class="flex flex-wrap gap-2 text-sm mt-2 sm:mt-0">
-                                    <?php if ($_SESSION['usuario_id'] == $comentario['usuario_id']): ?>
-                                        <?php if (puedeEditar($comentario['creado_en'])): ?>
-                                            <button onclick="toggleEditar(<?= $comentario['comentario_id'] ?>)" class="text-blue-600 hover:underline">✏️ Editar</button>
+                                <?php if ($tema['activo']): ?>
+                                    <div class="flex flex-wrap gap-2 text-sm mt-2 sm:mt-0">
+                                        <?php if ($_SESSION['usuario_id'] == $comentario['usuario_id']): ?>
+                                            <?php if (puedeEditar($comentario['creado_en'])): ?>
+                                                <button onclick="toggleEditar(<?= $comentario['comentario_id'] ?>)" class="text-blue-600 hover:underline">✏️ Editar</button>
+                                            <?php endif; ?>
+                                            <a href="?id=<?= $tema_id ?>&eliminar=<?= $comentario['comentario_id'] ?>" class="text-red-600 hover:underline">🗑️ Eliminar</a>
                                         <?php endif; ?>
-                                        <a href="?id=<?= $tema_id ?>&eliminar=<?= $comentario['comentario_id'] ?>" class="text-red-600 hover:underline">🗑️ Eliminar</a>
-                                    <?php endif; ?>
-                                    <button onclick="toggleResponder(<?= $comentario['comentario_id'] ?>)" class="text-green-600 hover:underline">↪️ Responder</button>
-                                </div>
+                                        <button onclick="toggleResponder(<?= $comentario['comentario_id'] ?>)" class="text-green-600 hover:underline">↪️ Responder</button>
+                                    </div>
+                                <?php endif; ?>
                             </div>
 
                             <p class="text-gray-800 text-sm sm:text-base"><?= htmlspecialchars($comentario['contenido']) ?></p>
@@ -139,19 +138,15 @@ function puedeEditar($creado_en)
                             <!-- Editar -->
                             <form id="edit-<?= $comentario['comentario_id'] ?>" method="POST" class="form-editar hidden mt-3 space-y-2">
                                 <input type="hidden" name="editar_id" value="<?= $comentario['comentario_id'] ?>">
-                                <textarea name="nuevo_contenido"
-                                    class="w-full p-2 border rounded-lg resize-none text-sm focus:ring-2 focus:ring-yellow-400"><?= htmlspecialchars($comentario['contenido']) ?></textarea>
+                                <textarea name="nuevo_contenido" class="w-full p-2 border rounded-lg resize-none text-sm focus:ring-2 focus:ring-yellow-400"><?= htmlspecialchars($comentario['contenido']) ?></textarea>
                                 <button type="submit" class="bg-yellow-500 text-white px-4 py-1 rounded hover:bg-yellow-600 transition text-sm">💾 Guardar</button>
                             </form>
 
                             <!-- Responder -->
                             <form id="form-<?= $comentario['comentario_id'] ?>" method="POST" class="form-respuesta hidden mt-3 space-y-2">
                                 <input type="hidden" name="respondido_a" value="<?= $comentario['comentario_id'] ?>">
-                                <textarea name="contenido" required
-                                    class="w-full p-2 border rounded-lg resize-none text-sm focus:ring-2 focus:ring-green-400"
-                                    placeholder="Responder a este comentario..."></textarea>
-                                <button type="submit"
-                                    class="bg-green-600 text-white px-4 py-1 rounded hover:bg-green-700 transition text-sm">Responder</button>
+                                <textarea name="contenido" required class="w-full p-2 border rounded-lg resize-none text-sm focus:ring-2 focus:ring-green-400" placeholder="Responder a este comentario..."></textarea>
+                                <button type="submit" class="bg-green-600 text-white px-4 py-1 rounded hover:bg-green-700 transition text-sm">Responder</button>
                             </form>
 
                             <!-- Respuestas -->
@@ -163,7 +158,7 @@ function puedeEditar($creado_en)
                                                 <p class="text-sm text-blue-700 font-semibold">
                                                     <?= htmlspecialchars($respuesta['nombre']) ?> respondió el <?= $respuesta['creado_en'] ?>
                                                 </p>
-                                                <?php if ($_SESSION['usuario_id'] == $respuesta['usuario_id']): ?>
+                                                <?php if ($tema['activo'] && $_SESSION['usuario_id'] == $respuesta['usuario_id']): ?>
                                                     <div class="flex flex-wrap gap-2 mt-1 sm:mt-0 text-sm">
                                                         <?php if (puedeEditar($respuesta['creado_en'])): ?>
                                                             <button onclick="toggleEditar(<?= $respuesta['comentario_id'] ?>)" class="text-blue-600 hover:underline">✏️ Editar</button>
@@ -178,8 +173,7 @@ function puedeEditar($creado_en)
                                             <!-- Editar respuesta -->
                                             <form id="edit-<?= $respuesta['comentario_id'] ?>" method="POST" class="form-editar hidden mt-2 space-y-2">
                                                 <input type="hidden" name="editar_id" value="<?= $respuesta['comentario_id'] ?>">
-                                                <textarea name="nuevo_contenido"
-                                                    class="w-full p-2 border rounded-lg resize-none text-sm focus:ring-2 focus:ring-yellow-400"><?= htmlspecialchars($respuesta['contenido']) ?></textarea>
+                                                <textarea name="nuevo_contenido" class="w-full p-2 border rounded-lg resize-none text-sm focus:ring-2 focus:ring-yellow-400"><?= htmlspecialchars($respuesta['contenido']) ?></textarea>
                                                 <button type="submit" class="bg-yellow-500 text-white px-4 py-1 rounded hover:bg-yellow-600 transition text-sm">💾 Guardar</button>
                                             </form>
                                         </li>

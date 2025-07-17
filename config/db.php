@@ -1,6 +1,6 @@
 <?php
-require_once 'load_env.php';
-loadEnv(__DIR__ . "/../.env");
+// require_once 'load_env.php';
+// loadEnv(__DIR__ . "/../.env");
 
 $uri = getenv("DB_URI");
 
